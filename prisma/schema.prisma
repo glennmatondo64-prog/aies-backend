@@ -1,0 +1,187 @@
+// AIES — Prisma schema
+// Maps the 8 core tables from the SRS to a relational database.
+// Docs: https://www.prisma.io/docs
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+
+enum Role {
+  STUDENT
+  COMPANY
+  UNIVERSITY
+  ACADEMIC_SUPERVISOR
+  COMPANY_SUPERVISOR
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum ApplicationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  COMPLETED
+}
+
+enum ReportStatus {
+  SUBMITTED
+  REVIEWED
+  APPROVED
+  REJECTED
+}
+
+// ---------- Core auth table ----------
+
+model User {
+  id        Int        @id @default(autoincrement())
+  name      String
+  email     String     @unique
+  password  String
+  role      Role
+  phone     String?
+  status    UserStatus @default(ACTIVE)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  // Profile links (one User = one profile, depending on role)
+  student    Student?
+  company    Company?
+  university University?
+
+  // Supervisor relations
+  academicSupervisions Application[]  @relation("AcademicSupervisor")
+  companySupervisions  Application[]  @relation("CompanySupervisor")
+  evaluationsGiven     Evaluation[]   @relation("Evaluator")
+
+  @@map("users")
+}
+
+// ---------- Profile tables ----------
+
+model University {
+  id       Int    @id @default(autoincrement())
+  userId   Int?   @unique
+  user     User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  name     String
+  address  String?
+  contact  String?
+
+  students Student[]
+
+  @@map("universities")
+}
+
+model Company {
+  id          Int          @id @default(autoincrement())
+  userId      Int          @unique
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  industry    String?
+  location    String?
+
+  internships Internship[]
+
+  @@map("companies")
+}
+
+model Student {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  universityId Int?
+  university   University? @relation(fields: [universityId], references: [id], onDelete: SetNull)
+  department   String?
+  skills       String?  // comma-separated or JSON string
+  cv           String?  // file path / URL
+  portfolio    String?
+
+  applications Application[]
+  reports      Report[]
+  evaluations  Evaluation[]
+
+  @@map("students")
+}
+
+// ---------- Domain tables ----------
+
+model Internship {
+  id             Int          @id @default(autoincrement())
+  companyId      Int
+  company        Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title          String
+  description    String
+  requiredSkills String?
+  duration       String?
+  location       String?
+  deadline       DateTime?
+  positions      Int          @default(1)
+  createdAt      DateTime     @default(now())
+
+  applications   Application[]
+
+  @@map("internships")
+}
+
+model Application {
+  id           Int               @id @default(autoincrement())
+  studentId    Int
+  student      Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  internshipId Int
+  internship   Internship        @relation(fields: [internshipId], references: [id], onDelete: Cascade)
+  status       ApplicationStatus @default(PENDING)
+  appliedAt    DateTime          @default(now())
+
+  // Supervisor assignment (set once accepted)
+  academicSupervisorId Int?
+  academicSupervisor   User?  @relation("AcademicSupervisor", fields: [academicSupervisorId], references: [id], onDelete: SetNull)
+  companySupervisorId  Int?
+  companySupervisor    User?  @relation("CompanySupervisor", fields: [companySupervisorId], references: [id], onDelete: SetNull)
+
+  // Monitoring
+  startDate DateTime?
+  endDate   DateTime?
+
+  @@unique([studentId, internshipId]) // a student applies to an internship once
+  @@map("applications")
+}
+
+model Report {
+  id           Int          @id @default(autoincrement())
+  studentId    Int
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  weekNumber   Int
+  activities   String
+  challenges   String?
+  skillsLearned String?
+  feedback     String?      // supervisor comment
+  status       ReportStatus @default(SUBMITTED)
+  createdAt    DateTime     @default(now())
+
+  @@map("reports")
+}
+
+model Evaluation {
+  id                Int      @id @default(autoincrement())
+  studentId         Int
+  student           Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  supervisorId      Int
+  supervisor        User     @relation("Evaluator", fields: [supervisorId], references: [id], onDelete: Cascade)
+  technicalScore    Int      // 1-5
+  professionalScore Int      // 1-5
+  overallRating     Int      // 1-5
+  comments          String?
+  createdAt         DateTime @default(now())
+
+  @@map("evaluations")
+}
