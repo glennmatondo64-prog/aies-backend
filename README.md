@@ -5,7 +5,7 @@ Backend for the **Academic Internship Evaluation System**: a platform connecting
 Built with **Node.js + Express + Prisma (PostgreSQL)**, JWT auth, and role-based access for all 6 user roles.
 
 > New here? Read **[GUIDE.md](./GUIDE.md)** — it walks the project from 0 to 100% phase by phase and explains how to extend this starter.
-
+Live API: https://aies-backend.onrender.com/api/health
 ---
 
 ## What's already built
